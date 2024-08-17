@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/prajwal-annigeri/kv-store/config"
 	"github.com/prajwal-annigeri/kv-store/db"
 	"github.com/prajwal-annigeri/kv-store/web"
@@ -35,36 +33,24 @@ func parseFlags() {
 func main() {
 	parseFlags()
 
-	var c config.Config
-	if _, err := toml.DecodeFile(*configFile, &c); err != nil {
-		log.Fatalf("toml.DecodeFile(%q): %v", *configFile, err)
+	c, err := config.ParseFile(*configFile)
+	if err != nil {
+		log.Fatalf("ParseFile(%s): %v", *configFile, err)
 	}
-	log.Printf("%#v", &c)
-
-	shardIndex := -1
-	shardCount := len(c.Shards)
-	addrs := make(map[int]string)
-
-	for _, s := range c.Shards {		
-		addrs[s.Idx] = s.Address
-
-		if strings.EqualFold(s.Name, *shard) {
-			shardIndex = s.Idx
-		}
-	}
-	if shardIndex == -1 {
-		log.Fatalf("Shard %q was not found", *shard)
+	
+	shards, err := config.ParseShards(c.Shards, *shard)
+	if err != nil {
+		log.Fatalf("ParseShards(): %v", err)
 	}
 
-	log.Printf("Shard count: %d, current shard: %d", shardCount, shardIndex)
+	log.Printf("Shard count: %d, current shard: %d", shards.Count, shards.CurIdx)
 
 	db, DBCloseFunc, err := db.NewDatabase(*dbLocation)
 	if err != nil {
 		log.Fatalf("NewDatabse(%q): %v", *dbLocation, err)
 	}
 	defer DBCloseFunc()
-
-	srv := web.NewServer(db, shardIndex, shardCount, addrs)
+	srv := web.NewServer(db, shards)
 
 	http.HandleFunc("/get", srv.GetHandler)
 	http.HandleFunc("/set", srv.SetHandler)
