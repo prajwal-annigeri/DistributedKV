@@ -42,5 +42,5 @@ go.work
 # Ignore all local history of files
 .history
 .ionide
-
+*.db
 # End of https://www.toptal.com/developers/gitignore/api/go,visualstudiocode
