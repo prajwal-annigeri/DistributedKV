@@ -12,3 +12,8 @@ address = "localhost:8081"
 name = "Washington"
 idx = 2
 address = "localhost:8082"
+
+[[shards]]
+name = "Seattle"
+idx = 3
+address = "localhost:8083"
