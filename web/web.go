@@ -1,13 +1,14 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"net/http"
 
 	"github.com/prajwal-annigeri/kv-store/config"
 	"github.com/prajwal-annigeri/kv-store/db"
+	"github.com/prajwal-annigeri/kv-store/replication"
 )
 
 type Server struct {
@@ -22,14 +23,8 @@ func NewServer(db *db.Database, s *config.Shards) *Server {
 	}
 }
 
-func (s *Server) getShard(key string) int {
-	h := fnv.New64()
-	h.Write([]byte(key))
-	return int(h.Sum64() % uint64(s.shards.Count))
-}
-
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request, targetShard int) {
-	fmt.Printf("Redirecting from shard %d to shard %d", s.shards.CurIdx, targetShard)
+	fmt.Printf("Redirecting from shard %d to shard %d\n", s.shards.CurIdx, targetShard)
 	resp, err := http.Get("http://" + s.shards.Addrs[targetShard] + r.RequestURI)
 	if err != nil {
 		w.WriteHeader(500)
@@ -57,11 +52,9 @@ func (s *Server) GetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) SetHandler(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	key := r.Form.Get("key")
-	value := r.Form.Get("value")
-
-	targetShard := s.getShard(key)
+	key := r.URL.Query().Get("key")
+	value := r.URL.Query().Get("value")
+	targetShard := s.shards.Index(key)
 
 	if targetShard != s.shards.CurIdx {
 		s.redirect(w, r, targetShard)
@@ -69,11 +62,39 @@ func (s *Server) SetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := s.db.SetKey(key, []byte(value))
-	fmt.Fprintf(w, "Error = %v, shardIdx = %d", err, targetShard)
+	if err != nil {
+		fmt.Fprintf(w, "Error = %v, shardIdx = %d", err, targetShard)
+	}
 }
 
 func (s *Server) DeleteExtraKeysHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Error: %v", s.db.DeleteExtraKeys(func(key string) bool {
 		return s.shards.Index(key) != s.shards.CurIdx
 	}))
+}
+
+func (s *Server) GetNextReplicaKey(w http.ResponseWriter, r *http.Request) {
+	enc := json.NewEncoder(w)
+	k, v, err := s.db.GetNextReplicaKey()
+	enc.Encode(&replication.NextKVPair{
+		Key:   string(k),
+		Value: string(v),
+		Err:   err,
+	})
+}
+
+func (s *Server) DeleteReplicaKey(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+
+	key := r.Form.Get("key")
+	value := r.Form.Get("value")
+
+	err := s.db.DeleteReplicaKey([]byte(key), []byte(value))
+	if err != nil {
+		w.WriteHeader(http.StatusExpectationFailed)
+		fmt.Fprintf(w, "error: %v", err)
+		return
+	}
+
+	fmt.Fprintf(w, "success")
 }

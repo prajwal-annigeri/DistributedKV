@@ -34,7 +34,7 @@ func TestDeleteExtraKeys(t *testing.T) {
 	f.Close()
 	defer os.Remove(name)
 
-	db, closeFunc, err := db.NewDatabase(name)
+	db, closeFunc, err := db.NewDatabase(name, false)
 	if err != nil {
 		t.Fatalf("Database creation failed: %v", err)
 	}
@@ -61,22 +61,77 @@ func TestDeleteExtraKeys(t *testing.T) {
 	}
 }
 
-func TestGetSet(t *testing.T) {
-	f, err := os.CreateTemp(os.TempDir(), "dbtest")
-	if err != nil {
-		t.Fatalf("Could not creater temp file: %v", err)
-	}
-	name := f.Name()
-	f.Close()
+func createTempDB(t *testing.T, readOnly bool) *db.Database {
+	t.Helper()
 
-	defer os.Remove(name)
-	db, closeFunc, err := db.NewDatabase(name)
+	file, err := os.CreateTemp(os.TempDir(), "tempkvdb")
 	if err != nil {
-		t.Fatalf("Database creation failed: %v", err)
+		t.Fatalf("Could not create temp file: %v\n", err)
 	}
-	defer closeFunc()
+	name := file.Name()
+	file.Close()
+	t.Cleanup(func() {os.Remove(name)})
+
+	db, closeFunc, err := db.NewDatabase(name, readOnly)
+	if err != nil {
+		t.Fatalf("Failed to create a new DB: %v\n", err)
+	}
+	t.Cleanup(func() {closeFunc()})
+
+	return db
+}
+func TestGetSet(t *testing.T) {
+	db := createTempDB(t, false)
 
 	setKey(t, db, "test_key", "test_val")
+	
+	val, err := db.GetKey("test_key")
+	if err != nil {
+		t.Fatalf("Could not get key: %v", err)
+	}
+
+	if !bytes.Equal(val, []byte("test_val")) {
+		t.Errorf("Wrong value. Expected: test_val, Got: %v", val)
+	}
+}
+
+func TestDeleteReplicationKey(t *testing.T) {
+	db := createTempDB(t, false)
+
+	setKey(t, db, "test_key", "test_val")
+
+	k, v, err := db.GetNextReplicaKey()
+	if err != nil {
+		t.Fatalf("GetNextReplicaKey error: %v\n", err)
+	}
+
+	if !bytes.Equal(k, []byte("test_key")) || !bytes.Equal(v, []byte("test_val")) {
+		t.Errorf("GetNextReplicaKey error. Got %q: %q, wanted %q: %q\n", k, v, "test_key", "test_val")
+	}
+
+	if err := db.DeleteReplicaKey([]byte("test_key"), []byte("test_value")); err == nil {
+		t.Fatalf(`DeleteReplicaKey("test_key", "test_val") should have thrown error, but it did not`)
+	}
+
+	if err := db.DeleteReplicaKey([]byte("test_key"), []byte("test_val")); err != nil {
+		t.Fatalf(`DeleteReplicaKey("test_key", "test_val") got error: %q`, err)
+	}
+
+	k, v, err = db.GetNextReplicaKey()
+	if err != nil {
+		t.Fatalf("GetNextReplicaKey error: %v\n", err)
+	}
+
+	if k != nil || v != nil {
+		t.Errorf("GetNextReplicaKey error. Got %q: %q, wanted nil: nil\n", k, v)
+	}
+}
+
+func TestGetSetReadOnly(t *testing.T) {
+
+	db := createTempDB(t, true)
+
+	setKey(t, db, "test_key", "shouldn't_work")
 	
 	val, err := db.GetKey("test_key")
 	if err != nil {

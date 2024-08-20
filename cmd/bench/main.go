@@ -13,7 +13,7 @@ import (
 
 const N = 100
 
-var addr = flag.String("addr", "localhost:8080", "HTTP address")
+var addr = flag.String("addr", "127.0.0.1:8080", "HTTP address")
 var iterations = flag.Int("iterations", 10000, "No. of iterations")
 var readIterations = flag.Int("read-iterations", 10000, "No. of read iterations")
 var concurrency = flag.Int("concurrency", 1, "No. of goroutines in parallel")

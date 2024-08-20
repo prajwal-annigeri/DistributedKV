@@ -2,18 +2,22 @@
 name = "NewYork"
 idx = 0
 address = "localhost:8080"
+replica-address = ["localhost:8081"]
 
 [[shards]]
 name = "California"
 idx = 1
-address = "localhost:8081"
+address = "127.0.0.2:8080"
+replica-address = ["127.0.0.22:8080"]
 
 [[shards]]
 name = "Washington"
 idx = 2
-address = "localhost:8082"
+address = "127.0.0.3:8080"
+replica-address = ["127.0.0.33:8080"]
 
 [[shards]]
 name = "Seattle"
 idx = 3
-address = "localhost:8083"
+address = "127.0.0.4:8080"
+replica-address = ["127.0.0.44:8080"]
