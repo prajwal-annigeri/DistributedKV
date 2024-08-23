@@ -1,8 +1,8 @@
 # DistributedKV
 
-DistributedKV is a distributed key-value store with support for replication and sharding
+DistributedKV is a distributed key-value store with support for replication and resharding. Built with Go using Bolt.
 
-# Usage
+# Getting Started
 ## Requirements
 * `Go` >= 1.21.4
 
@@ -30,5 +30,16 @@ You can add or remove shards by  adding/removing a shard object from the `shardi
 
 Please refer to launch.sh which currently has specified 8 instances (including 4 replicas). You can add or remove instances
 
+# Usage
 ## Running the application
 Run the `launch.sh` script
+
+## To store a key-value pair
+Make a HTTP GET rquest to the /set endpoint
+
+`curl http://{address_of_instance}/set?key={key_here}&value={value_here}`
+
+## To fetch value for a key
+Make a HTTP GET rquest to the /get endpoint
+
+`curl http://{address_of_instance}/get?key={key_here}`
